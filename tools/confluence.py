@@ -272,7 +272,7 @@ class Tools:
         RULES:
         1. space_key MUST be the exact short-code used in the Confluence URL.
         2. content_html MUST be fully written, valid HTML (e.g., <h1>, <p>, <ul>, <li>). NEVER use Markdown.
-        3. CRITICAL DATA RULE: Never pass raw variables, JSON, or placeholders like '{tickets}' or '[Insert Data]' into content_html. If you fetched data from Jira or GitHub, you MUST parse that data and write it out as a complete HTML string (e.g., '<ul><li>INT-123 - Summary</li></ul>') BEFORE calling this tool.
+        3. CRITICAL DATA RULE: Never pass raw variables, JSON, or placeholders like '{tickets}' or '[Insert Data]' into content_html. If you fetched data from Jira or GitHub, you MUST parse that data and write it out as a complete HTML string (e.g., '<ul><li>XYZ-123 - Summary</li></ul>') BEFORE calling this tool.
         """
 
         emitter = EventEmitter(__event_emitter__)
