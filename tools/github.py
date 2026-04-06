@@ -88,7 +88,7 @@ class Tools:
         )
         default_org: str = Field(
             "",
-            description="Optional: Default organization or owner name (e.g., 'elastic')",
+            description="Optional: Default organization or owner name (e.g., 'YourOrg')",
         )
 
     def _get_client(self) -> GitHubClient:
@@ -111,7 +111,7 @@ class Tools:
     ) -> str:
         """
         Fetches open issues from a specific GitHub repository.
-        repo_name: MUST be in the format 'owner/repo' (e.g., 'elastic/ElasticGPT').
+        repo_name: MUST be in the format 'owner/repo' (e.g., 'YourOrg/YourOrgGPT').
         """
         repo_name = self._parse_repo(repo_name)
         query = f"repo:{repo_name} is:issue is:open"
@@ -174,7 +174,7 @@ class Tools:
         Search for GitHub Issues and Pull Requests.
         CRITICAL: If using the 'repo:' qualifier, you MUST include the owner/organization.
         CRITICAL: You MUST include 'is:issue' or 'is:pull-request' in the query.
-        Examples: 'repo:elastic/kibana is:pr is:open', 'repo:elastic/ElasticGPT is:issue is:open'
+        Examples: 'repo:YourOrg/kibana is:pr is:open', 'repo:YourOrg/YourOrgGPT is:issue is:open'
         """
         if self.valves.default_org:
             query = re.sub(
@@ -229,7 +229,7 @@ class Tools:
     ) -> str:
         """
         Read the full details, description, and status of a specific GitHub Issue or Pull Request.
-        repo_name MUST be in the format 'owner/repo' (e.g., 'elastic/kibana').
+        repo_name MUST be in the format 'owner/repo' (e.g., 'YourOrg/kibana').
         """
         repo_name = self._parse_repo(repo_name)
         emitter = EventEmitter(__event_emitter__)
@@ -366,7 +366,7 @@ class Tools:
     ) -> str:
         """
         Fetch the latest release notes and version tags from a GitHub repository.
-        repo_name MUST be in the format 'owner/repo' (e.g., 'elastic/kibana').
+        repo_name MUST be in the format 'owner/repo' (e.g., 'YourOrg/kibana').
         """
         repo_name = self._parse_repo(repo_name)
         emitter = EventEmitter(__event_emitter__)
