@@ -1,7 +1,7 @@
 """
 title: JIRA
 description: Ultimate Jira management: Create structured Stories, find stale tickets, transition issues, and manage sprints/comments.
-version: 3.1.0
+version: 3.2.0
 license: MIT
 """
 
@@ -62,7 +62,6 @@ class JiraClient:
     def _get_auth(self):
         return None if self.pat else (self.username, self.password)
 
-    # 🚀 FIX: Added api_version parameter to allow dynamic switching
     def _request(
         self,
         method: str,
@@ -72,7 +71,6 @@ class JiraClient:
         is_agile=False,
         api_version="2",
     ):
-        # We default to api/2 to prevent Atlassian Document Format crashes on creations/updates
         api_type = "agile/1.0" if is_agile else f"api/{api_version}"
         url = f"{self.base_url}/rest/{api_type}/{path}"
 
@@ -160,7 +158,6 @@ class Tools:
         await emitter.emit_status(f"Executing JQL: {jql}", False)
         try:
             client = self._get_client()
-            # 🚀 FIX: Explicitly calling api/3 and search/jql for this specific method
             res = client._request(
                 "GET",
                 "search/jql",
@@ -218,7 +215,6 @@ class Tools:
             sprint_id = sprint["id"]
 
             jql = f"sprint = {sprint_id} AND updated <= -{days_stale}d"
-            # 🚀 FIX: Explicitly calling api/3 and search/jql for this specific method
             res = client._request(
                 "GET",
                 "search/jql",
@@ -442,12 +438,12 @@ class Tools:
         issue_key: str,
         summary: str = None,
         description: str = None,
-        acceptance_criteria: str = None,
+        custom_fields: dict = None,
         __event_emitter__: Callable[[dict], Awaitable[None]] = None,
     ) -> str:
         """
         Update an existing Jira issue's fields.
-        Use this to change the Title (summary), Description, or Acceptance Criteria of an existing ticket.
+        Provide standard fields like summary and description, or a dictionary of custom_fields mapping IDs to values.
         """
         emitter = EventEmitter(__event_emitter__)
         await emitter.emit_status(f"Updating fields for {issue_key}...", False)
@@ -459,8 +455,8 @@ class Tools:
                 fields["summary"] = summary
             if description:
                 fields["description"] = description
-            if acceptance_criteria:
-                fields["customfield_10199"] = acceptance_criteria
+            if custom_fields:
+                fields.update(custom_fields)
 
             if not fields:
                 return "No fields provided to update."
@@ -486,66 +482,61 @@ class Tools:
         self,
         project_key: str,
         summary: str,
-        requesting_org: str,
-        benefitting_org: str,
-        delivery_area: str,
-        user_story: str,
-        current_state: str,
-        desired_state: str,
-        acceptance_criteria: str,
         issue_type: str = "Story",
-        additional_context: str = "",
+        user_story: str = "",
+        acceptance_criteria: str = "",
+        additional_description: str = "",
         priority: str = "",
+        custom_fields: dict = None,
         __event_emitter__: Callable[[dict], Awaitable[None]] = None,
     ) -> str:
         """
-        Create a new Jira issue. Before calling this tool, you MUST have ALL required fields.
-        If the user has not provided some fields, you MUST ask them. If the user asks you to fill in
-        or generate content, use your knowledge to write professional content for the missing fields.
-        Always ask for customfield_10188 (Delivery Area), customfield_12007 (Benefitting Org),
-        and customfield_10077 (Requesting Org) if they are not provided.
+        Create a new universally compatible Jira issue.
+        If User Story or Acceptance Criteria are provided, they are cleanly formatted into the main Description
+        block using Jira markdown, ensuring compatibility with any organization's Jira setup without requiring custom fields.
 
-        Required fields - ask the user if missing:
-        - project_key: Jira project key (e.g. 'ITDEV', 'INT')
+        Required fields:
+        - project_key: Jira project key (e.g. 'DEV', 'MKTG')
         - summary: Brief title of the issue
-        - requesting_org: e.g. 'IT', 'Engineering', 'Sales', 'Marketing', 'Finance', 'HR', 'Legal', 'Security'
-        - benefitting_org: e.g. 'IT', 'Engineering', 'Sales', 'Marketing', 'Finance', 'HR', 'Legal', 'Security'
-        - delivery_area: e.g. 'ElasticGPT', 'CoE', 'Platform', 'INT 2'
-        - user_story: Format as 'As a [role], I want [goal], so that [benefit]'
-        - current_state: Describe the current situation or problem
-        - desired_state: Describe what the end result should look like
-        - acceptance_criteria: List of conditions that must be met. Use '* ' prefix for each bullet point.
 
-        Optional fields:
+        Optional structured fields:
         - issue_type: Story, Task, or Bug (default: Story)
-        - additional_context: Any extra information, links, or references. This goes into the main Description box.
+        - user_story: Format as 'As a [role], I want [goal], so that [benefit]'
+        - acceptance_criteria: Bulleted list of conditions.
+        - additional_description: Any extra context, logs, or references.
         - priority: High, Medium, or Low
+        - custom_fields: JSON dictionary mapping specific custom field IDs to their values (if needed).
         """
         emitter = EventEmitter(__event_emitter__)
         await emitter.emit_status(f"Creating {issue_type} in {project_key}", False)
         try:
             client = self._get_client()
 
+            # Format the Agile fields into a clean, universal Jira Markdown description
+            formatted_description = additional_description
+            
+            if user_story:
+                formatted_description += f"\n\nh2. User Story\n{user_story.strip()}"
+            if acceptance_criteria:
+                formatted_description += f"\n\nh2. Acceptance Criteria\n{acceptance_criteria.strip()}"
+
             issue_data = {
                 "fields": {
                     "project": {"key": project_key},
                     "summary": summary,
                     "issuetype": {"name": issue_type},
-                    "customfield_10077": [{"value": requesting_org}],
-                    "customfield_12007": [{"value": benefitting_org}],
-                    "customfield_10188": {"value": delivery_area},
-                    "customfield_11863": user_story,
-                    "customfield_10197": current_state,
-                    "customfield_10198": desired_state,
-                    "customfield_10199": acceptance_criteria,
                 }
             }
 
-            if additional_context:
-                issue_data["fields"]["description"] = additional_context
+            if formatted_description.strip():
+                issue_data["fields"]["description"] = formatted_description.strip()
 
             if priority:
                 issue_data["fields"]["priority"] = {"name": priority}
+
+            # Merge in any explicitly provided custom fields mapping
+            if custom_fields:
+                issue_data["fields"].update(custom_fields)
 
             result = client._request("POST", "issue", data=issue_data, is_agile=False)
 
@@ -569,9 +560,6 @@ class Tools:
         github_url: str,
         github_title: str,
         github_body: str,
-        requesting_org: str = "IT",
-        benefitting_org: str = "IT",
-        delivery_area: str = "ElasticGPT",
         issue_type: str = "Story",
         __event_emitter__: Callable[[dict], Awaitable[None]] = None,
     ) -> str:
@@ -595,14 +583,9 @@ class Tools:
         return await self.create_jira_issue(
             project_key=project_key,
             summary=f"[GitHub] {github_title}",
-            requesting_org=requesting_org,
-            benefitting_org=benefitting_org,
-            delivery_area=delivery_area,
             user_story=f"As a developer, I need to address the cloned GitHub issue: {github_title}",
-            current_state="Issue reported in GitHub. Needs to be tracked in Jira.",
-            desired_state="GitHub issue is resolved and synced.",
             acceptance_criteria="* Code committed and merged.\n* GitHub issue closed.",
             issue_type=issue_type,
-            additional_context=formatted_description,
+            additional_description=formatted_description,
             __event_emitter__=__event_emitter__,
         )
